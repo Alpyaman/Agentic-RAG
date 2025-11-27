@@ -1,0 +1,19 @@
+# Core dependencies for the Agentic Stack
+langgraph
+langchain
+langchain-openai
+langchain-community
+
+# Web search and research tools
+tavily-python
+
+# Vector database
+chromadb
+
+# Document parsing and indexing
+llama-index
+llama-parse
+
+# Data manipulation and analysis
+pandas
+numpy
