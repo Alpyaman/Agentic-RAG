@@ -17,7 +17,6 @@ from dotenv import load_dotenv
 from writer import (
     writer_node,
     writer_node_structured,
-    generate_investment_memo,
     MEMO_SECTIONS
 )
 

@@ -19,11 +19,9 @@ Key Feature: Conditional edges based on data sufficiency evaluation
 from typing import Dict, Any, Literal
 from langgraph.graph import StateGraph, END
 from state import AgentState
-from web_researcher import web_research_node, iterative_web_research_node
+from web_researcher import iterative_web_research_node
 from financial_analyst import financial_analyst_node
 from writer import writer_node
-from IPython.display import Image, display
-
 
 # ============================================================================
 # Evaluation Node - Decides if we have enough data
@@ -101,49 +99,59 @@ def route_after_evaluation(state: AgentState) -> Literal["research", "write"]:
         return "research"
 
 # ============================================================================
-# Combined Research Node - Runs both researchers in sequence
+# Research Phase Nodes - Parallel Execution
 # ============================================================================
 
-def combined_research_node(state: AgentState) -> Dict[str, Any]:
+def start_research_phase(state: AgentState) -> Dict[str, Any]:
     """
-    Run both Web Researcher and Financial Analyst.
+    Print status message at the start of a research iteration.
 
-    In this simple implementation, they run sequentially.
-    For better performance, you could use LangGraph's parallel execution.
+    This is a lightweight node that just logs progress before
+    the parallel research nodes execute.
 
     Args:
         state: Current agent state
 
     Returns:
-        Combined updates from both researchers
+        Empty dict (no state updates)
     """
-
     print(f"\n{'='*80}")
     print(f"Starting Research Phase - Iteration {state.get('research_iterations', 0) + 1}")
     print(f"{'='*80}\n")
 
-    # Run Web Researcher
-    # Use iterative approach for deeper research
-    web_results = iterative_web_research_node(state)
+    return {}
 
-    # Update state with web results
-    updated_state = {**state}
-    if "market_context" in web_results:
-        updated_state["market_context"] = state.get("market_context", []) + web_results["market_context"]
+def web_research_wrapper(state: AgentState) -> Dict[str, Any]:
+    """
+    Wrapper for Web Researcher node (enables parallel execution).
 
-    # Run Financial Analyst
-    financial_results = financial_analyst_node(updated_state)
+    This wrapper allows the web researcher to be a separate node
+    in the graph that runs in parallel with the financial analyst.
 
-    # Combine results
-    combined_results = {}
+    Args:
+        state: Current agent state
 
-    if "market_context" in web_results:
-        combined_results["market_context"] = web_results["market_context"]
+    Returns:
+        Web research results
+    """
+    print("Web Researcher: Starting parallel execution...")
+    return iterative_web_research_node(state)
 
-    if "financial_context" in financial_results:
-        combined_results["financial_context"] = financial_results["financial_context"]
+def financial_analysis_wrapper(state: AgentState) -> Dict[str, Any]:
+    """
+    Wrapper for Financial Analyst node (enables parallel execution).
 
-    return combined_results
+    This wrapper allows the financial analyst to be a separate node
+    in the graph that runs in parallel with the web researcher.
+
+    Args:
+        state: Current agent state
+
+    Returns:
+        Financial analysis results
+    """
+    print("Financial Analyst: Starting parallel execution...")
+    return financial_analyst_node(state)
 
 # ============================================================================
 # Graph Construction
@@ -151,21 +159,33 @@ def combined_research_node(state: AgentState) -> Dict[str, Any]:
 
 def create_research_graph() -> StateGraph:
     """
-    Create the complete LangGraph workflow.
+    Create the complete LangGraph workflow with PARALLEL EXECUTION.
 
-    Graph Structure:
+    Graph Structure (NEW - Parallel Research):
 
         START
           ↓
-       RESEARCH (Web + Financial)
+       start_research (logs iteration)
+          ↓
+        ┌─┴─┐
+        ↓   ↓
+    web_research  financial_analysis
+        ↓   ↓           (PARALLEL)
+        └─┬─┘
           ↓
        EVALUATE (check sufficiency)
           ↓
       [Decision]
        ↙     ↘
-    RESEARCH  WRITE
-    (loop)      ↓
-              END
+    start_research  WRITE
+    (loop)            ↓
+                     END
+
+    Performance Improvement:
+    - Web Researcher and Financial Analyst run concurrently
+    - Reduces research time by ~50% (if both take similar time)
+    - Both nodes write to separate state keys (no conflicts)
+    - State merging happens automatically via operator.add
 
     Returns:
         Compiled StateGraph ready to execute
@@ -175,24 +195,32 @@ def create_research_graph() -> StateGraph:
     workflow = StateGraph(AgentState)
 
     # Add nodes
-    workflow.add_node("research", combined_research_node)
+    workflow.add_node("start_research", start_research_phase)
+    workflow.add_node("web_research", web_research_wrapper)
+    workflow.add_node("financial_analysis", financial_analysis_wrapper)
     workflow.add_node("evaluate", evaluate_data_sufficiency)
     workflow.add_node("write", writer_node)
 
     # Define edges
-    # Start with research
-    workflow.set_entry_point("research")
+    # Start with research phase initialization
+    workflow.set_entry_point("start_research")
 
-    # After research, always evaluate
-    workflow.add_edge("research", "evaluate")
+    # PARALLEL EXECUTION: Both researchers start simultaneously
+    workflow.add_edge("start_research", "web_research")
+    workflow.add_edge("start_research", "financial_analysis")
+
+    # Both researchers feed into evaluation
+    # LangGraph automatically waits for both to complete before proceeding
+    workflow.add_edge("web_research", "evaluate")
+    workflow.add_edge("financial_analysis", "evaluate")
 
     # After evaluation, conditionally route
     workflow.add_conditional_edges(
         "evaluate",
         route_after_evaluation,
         {
-            "research": "research",  # Loop back for more data
-            "write": "write"         # Proceed to memo generation
+            "research": "start_research",  # Loop back for more data
+            "write": "write"               # Proceed to memo generation
         }
     )
 
