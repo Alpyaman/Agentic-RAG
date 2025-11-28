@@ -164,13 +164,15 @@ def financial_analyst_node(state: AgentState) -> Dict[str, Any]:
 
 def extract_financial_answer(query: str, context: str, company: str, python_repl: PythonREPLTool) -> str:
     """
-    Use a LLM to extract financial answers from retrieved context.
+    Use an LLM with Tool Use to extract financial answers from retrieved context.
 
-    The LLM is instructed to:
-    1. Find the relevant data in the context
-    2. If calculations are needed, generate Python code
-    3. Execute calculations using the Python REPL
-    4. Return a precise, cited answer
+    This implements a three-pass agent pattern:
+    1. Pass 1: LLM extracts data and generates Python code for calculations
+    2. Pass 2: Execute Python code via REPL for 100% accurate results
+    3. Pass 3: LLM incorporates calculation results into final answer
+
+    This ensures that financial calculations (ratios, growth rates, percentages)
+    are mathematically precise, not hallucinated by the LLM.
 
     Args:
         query: The financial question
@@ -179,50 +181,140 @@ def extract_financial_answer(query: str, context: str, company: str, python_repl
         python_repl: Python REPL tool for calculations
 
     Returns:
-        Extracted answer with citations
+        Extracted answer with citations and accurate calculations
     """
 
+    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash-live", temperature=0)
+
+    # ========================================================================
+    # PASS 1: Extract data and identify calculations needed
+    # ========================================================================
+
     extraction_prompt = ChatPromptTemplate.from_template(
-        """You are a forensic accountant analyzing financial document for {company}.
+        """
+        You are a forensic accountant analyzing financial documents for {company}.
         
-        Your task: Answer the following question using ONLY the provided context.
-        
+        Your task: Extract data to answer the following question.
+
         Question: {query}
-        
+
         Context from financial filings:
         {context}
-        
+
         Instructions:
-        1. Find the relevant data in the context.
-        2. If you need to perform calculations (e.g., ratios, percentages, growth rates):
-            - DO NOT calculate in your response
-            - Instead, identify the numbers and state what calculation is needed
-            - Example: "Revenue 2023: $100B, Revenue 2022: $90B. Growth calculation needed."
-        3. Cite the source section (e.g., "From Income Statement, FY 2023")
-        4. If data is not in the context, say "Data not available in provided documents"
+        1. Extract all relevant numbers from the context (revenue, debt, equity, margins, etc.)
+        2. If calculations are needed (ratios, percentages, growth rates, CAGR):
+        - DO NOT calculate yourself (LLMs are bad at math)
+        - Instead, generate valid Python code to perform the calculation
+        - Use descriptive variable names
+        - Format code in a ```python code block
+        3. Cite the source (e.g., "From 10-K FY 2023, page 45")
+        4. If data is missing, state what's missing
 
-        Answer:"""
-    )
+        Example output format:
+        "Revenue 2023: $96.77B (From 10-K FY 2023)
+        Revenue 2022: $81.46B (From 10-K FY 2022)
 
-    llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash-live", temperature=0)
-    chain = extraction_prompt | llm
+        To calculate YoY growth:
+        ```python
+        revenue_2023 = 96.77
+        revenue_2022 = 81.46
+        yoy_growth = ((revenue_2023 - revenue_2022) / revenue_2022) * 100
+        result = round(yoy_growth, 2)
+        ```"
+
+        Your response:"""
+        )
 
     try:
+        # Get initial extraction with potential Python code
+        chain = extraction_prompt | llm
         result = chain.invoke({
             "company": company,
             "query": query,
-            "context": context[:4000] # Limit context to avoid token limits
+            "context": context[:4000]  # Limit context to avoid token limits
         })
 
-        answer = result.content if hasattr(result, 'content') else str(result)
+        initial_answer = result.content if hasattr(result, 'content') else str(result)
 
-        # TODO: In a more advanced implementation, we would:
-        # 1. Parse the answer for calculation needs
-        # 2. Generate Python code for those calculations
-        # 3. Execute with python_repl
-        # 4. Insert results back into the answer
+        # ========================================================================
+        # PASS 2: Execute any Python code found in the response
+        # ========================================================================
 
-        return answer
+        calculation_results = {}
+
+        # Extract Python code blocks
+        import re
+        code_blocks = re.findall(r'```python\n(.*?)\n```', initial_answer, re.DOTALL)
+
+        if code_blocks:
+            print("    Executing calculations via Python REPL...")
+
+            for i, code in enumerate(code_blocks):
+                try:
+                    # Execute the code via Python REPL
+                    # Ensure we capture the 'result' variable
+                    execution_code = code.strip()
+
+                    # If code doesn't assign to 'result', capture last expression
+                    if 'result' not in execution_code:
+                        execution_code += "\nresult = locals().get('result', 'Calculation complete')"
+
+                    # Execute via REPL
+                    output = python_repl.run(execution_code)
+
+                    # Parse the result
+                    # The REPL returns the output as a string
+                    calculation_results[f'calc_{i}'] = output.strip()
+
+                    print(f"       ✓ Calculation {i+1}: {output.strip()}")
+
+                except Exception as e:
+                    calculation_results[f'calc_{i}'] = f"Error: {str(e)}"
+                    print(f"       ✗ Calculation {i+1} failed: {e}")
+
+         # ========================================================================
+        # PASS 3: Incorporate calculation results into final answer
+        # ========================================================================
+
+        if calculation_results:
+            # Build final answer with precise calculations
+            final_prompt = ChatPromptTemplate.from_template(
+                """
+                You are a forensic accountant finalizing your analysis for {company}.
+
+                You previously extracted data and identified calculations needed:
+                {initial_answer}
+
+                Python REPL executed the calculations with these results:
+                {calculation_results}
+
+                Your task: Write a final, concise answer to the original question, incorporating the EXACT numerical results from Python.
+
+                Question: {query}
+
+                Instructions:
+                1. Use the precise numbers from Python (not rounded estimates)
+                2. Format percentages clearly (e.g., "18.8% YoY growth")
+                3. Maintain citations to source documents
+                4. Keep answer concise (2-3 sentences)
+
+                Final answer:"""
+                )
+
+            chain = final_prompt | llm
+            final_result = chain.invoke({
+                "company": company,
+                "query": query,
+                "initial_answer": initial_answer,
+                "calculation_results": "\n".join([f"{k}: {v}" for k, v in calculation_results.items()])
+            })
+
+            return final_result.content if hasattr(final_result, 'content') else str(final_result)
+
+        else:
+            # No calculations needed, return initial answer
+            return initial_answer
     
     except Exception as e:
         return f"Error extracting answer: {str(e)}"
