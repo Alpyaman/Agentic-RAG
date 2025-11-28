@@ -359,7 +359,7 @@ def ingest_financial_document(file_path: str, ticker: str, year: int, doc_type: 
         # Conver to LangChain Document format
         docs = [
             Document(
-                page_contet=doc.text,
+                page_content=doc.text,
                 metadata={
                     "ticker": ticker,
                     "year": year,
@@ -376,7 +376,7 @@ def ingest_financial_document(file_path: str, ticker: str, year: int, doc_type: 
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=2000,
             chunk_overlap=200,
-            seperators=["\n\n", "\n", ".", " "]
+            separators=["\n\n", "\n", ".", " "]
         )
 
         splits = text_splitter.split_documents(docs)
