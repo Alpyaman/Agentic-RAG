@@ -4,8 +4,12 @@ Financial Document Ingestion Script
 This script ingests financial documents (10-Ks, 10-Qs, earnings transcripts)
 into ChromaDB for the Financial Analyst node to query.
 
+Supports: PDF, HTML, DOCX, PPTX, TXT
+(SEC EDGAR filings are typically downloaded as HTML)
+
 Usage:
     python src/ingest.py data/TSLA_2023_10K.pdf TSLA 2023
+    python src/ingest.py data/TSLA_2023_10K.html TSLA 2023
     python src/ingest.py data/AAPL_Q3_2023.pdf AAPL 2023 --quarter Q3 --type 10-Q
 
 Requirements:
@@ -47,15 +51,19 @@ def check_environment():
     return True
 
 def validate_file(file_path: str) -> Path:
-    """Validate that the file exists and is a PDF"""
+    """Validate that the file exists and is a supported format"""
+
     path = Path(file_path)
 
     if not path.exists():
         print(f"Error: File not found at {file_path}")
         sys.exit(1)
 
-    if path.suffix.lower() != '.pdf':
-        print(f"Error: File must be a PDF (got {path.suffix})")
+    # LlamaParse supports PDF, HTML, DOCX, PPTX, and more
+    supported_formats = ['.pdf', '.html', '.htm', '.docx', '.pptx', '.txt']
+    if path.suffix.lower() not in supported_formats:
+        print(f"Error: Unsupported file format: {path.suffix}")
+        print(f"   Supported formats: {', '.join(supported_formats)}")
         sys.exit(1)
 
     return path

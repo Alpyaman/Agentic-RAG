@@ -343,4 +343,4 @@ def iterative_web_research_node(state: AgentState) -> Dict[str, Any]:
     combined_tavily_answer = "\n\n".join(all_answers) if all_answers else ""
     synthesis = synthesize_search_results(company, ticker, all_results, combined_tavily_answer)
 
-    return {"market_context": synthesis}
+    return {"market_context": [synthesis]}
