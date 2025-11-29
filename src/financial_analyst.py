@@ -23,6 +23,7 @@ from state import AgentState
 from llama_parse import LlamaParse
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
+from langchain_huggingface import HuggingFaceEmbeddings
 import traceback
 
 # ===========================================================================================
@@ -54,7 +55,7 @@ def create_python_repl():
 # Vector Store Configuration
 # ===========================================================================================
 
-def create_vector_store(collection_name: str = "financial_reports", persist_directory: str = "./chroma_db") -> Chroma:
+def create_vector_store(collection_name: str = "financial_reports", persist_directory: str = "./chroma_db", use_local_embeddings: bool = True) -> Chroma:
     """
     Create or load a ChromaDB vector store for financial documents.
 
@@ -70,12 +71,28 @@ def create_vector_store(collection_name: str = "financial_reports", persist_dire
     Args:
         collection_name: Name of the ChromaDB collection
         persist_directory: Directory to persist the database
+        use_local_embeddings: If true, use Local HuggingFace embeddings (no API, no quotas).
 
     Returns:
         Chroma: Configured vector state
     """
-    # Use Google's embedding model (consistent with Gemini usage)
-    embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-exp-03-07")
+    if use_local_embeddings:
+        # Use local HuggingFace embeddings
+        try:
+            print("Using local HuggingFace Embeddings")
+
+            # Model options (from best to fastest):
+            # - "sentence-transformers/all-mpnet-base-v2" - Best quality (420MB)
+            # - "sentence-transformers/all-MiniLM-L6-v2" - Good balance (80MB)
+            # - "sentence-transformers/paraphrase-MiniLM-L3-v2" - Fastest (60MB)
+
+            embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2", model_kwargs={'device': 'cpu'}, encode_kwargs={'normalize_embeddings': True})
+        except ImportError:
+            print("Warning: sentence-transformers not installed.")
+
+    if not use_local_embeddings:
+        # Use Google's embedding model (consistent with Gemini usage)
+        embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-exp-03-07")
 
     # Initialize or load ChromaDB
     vectorstore = Chroma(collection_name=collection_name, embedding_function=embeddings, persist_directory=persist_directory)
