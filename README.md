@@ -1,22 +1,22 @@
-# 🤖 Agentic RAG Market Research Analyst
+# Agentic RAG Market Research Analyst
 
 An AI-powered investment research system that generates professional investment memos by autonomously gathering and analyzing market data.
 
-## 🎯 What is Agentic RAG?
+## What is Agentic RAG?
 
 Unlike traditional RAG (Retrieval-Augmented Generation), which follows a linear retrieve → generate flow, **Agentic RAG** features:
 
-1.  **🔍 Autonomous Data Sourcing**: Automatically downloads 10-K/10-Q filings directly from **SEC EDGAR**.
-2.  **⚡ Parallel Agent Execution**: Web Researcher and Financial Analyst run simultaneously, cutting latency by 50%.
-3.  **🧮 3-Pass "Anti-Hallucination" Math**:
+1.  ** Autonomous Data Sourcing**: Automatically downloads 10-K/10-Q filings directly from **SEC EDGAR**.
+2.  ** Parallel Agent Execution**: Web Researcher and Financial Analyst run simultaneously, cutting latency by 50%.
+3.  ** 3-Pass "Anti-Hallucination" Math**:
     * *Pass 1:* LLM identifies the formula needed.
     * *Pass 2:* Python REPL executes the math (100% precision).
     * *Pass 3:* LLM synthesizes the answer into the narrative.
-4.  **👁️ Vision-Language Parsing**: Uses **LlamaParse** to read complex financial tables row-by-row, preserving structure that standard OCR misses.
+4.  ** Vision-Language Parsing**: Uses **LlamaParse** to read complex financial tables row-by-row, preserving structure that standard OCR misses.
 
 ---
 
-## 🏗️ System Architecture
+## System Architecture
 
 ```
 INPUT: Company + Ticker (e.g., "Tesla", "TSLA")
@@ -53,7 +53,7 @@ INPUT: Company + Ticker (e.g., "Tesla", "TSLA")
 OUTPUT: Investment Memo (Markdown)
 ```
 
-## ✨ Key Features
+## Key Features
 
 ### 1. **Iterative "Tree of Thoughts" Research**
 - Performs initial broad search
@@ -81,7 +81,7 @@ OUTPUT: Investment Memo (Markdown)
 - **Gemini Pro**: Final memo generation (quality matters)
 - **Google Embeddings**: Vector database (free tier available)
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Install Dependencies
 
@@ -130,7 +130,7 @@ print(f"Market data points: {len(result['market_context'])}")
 print(f"Research iterations: {result['research_iterations']}")
 ```
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 Agentic-RAG/
@@ -156,7 +156,7 @@ Agentic-RAG/
 └── Building an Agentic RAG Analyst.docx  # Original design document
 ```
 
-## 🧪 Testing
+## Testing
 
 Run individual test suites:
 
@@ -179,7 +179,7 @@ python src/test_graph.py
 
 All tests work without API keys (graceful degradation) but show limited functionality.
 
-## 🔧 Advanced Usage
+## Advanced Usage
 
 ### Adding Financial Documents to Vector DB
 
@@ -235,7 +235,7 @@ app = create_research_graph()
 print(app.get_graph().draw_mermaid())
 ```
 
-## 🎓 How It Works
+## How It Works
 
 ### 1. State Management (`state.py`)
 
@@ -327,7 +327,7 @@ is_sufficient = (has_financial and has_market and iterations >= 1)
                 or iterations >= 3  # Force write after 3 loops
 ```
 
-## 📊 Technology Stack
+## Technology Stack
 
 | Component | Technology | Why? |
 |-----------|-----------|------|
@@ -340,7 +340,7 @@ is_sufficient = (has_financial and has_market and iterations >= 1)
 | **Doc Parsing** | LlamaParse | Vision-language model for tables |
 | **Calculations** | Python REPL | 100% accurate math (vs hallucinating LLM) |
 
-## 🔍 Example Output
+##  Example Output
 
 Here's what the system generates for Tesla (TSLA):
 
@@ -369,7 +369,7 @@ company. The business model encompasses:
 [continues with detailed analysis...]
 ```
 
-## 🎛️ Configuration
+## Configuration
 
 ### Adjusting Research Iterations
 
@@ -399,7 +399,7 @@ llm = ChatGoogleGenerativeAI(
 )
 ```
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### ImportError: No module named 'langchain_experimental'
 
@@ -426,7 +426,7 @@ The vector database is initially empty. Either:
 1. Let the system work with web data only (Financial Analyst will report "No data")
 2. Ingest financial documents using `ingest_financial_document()`
 
-## 🤝 Contributing
+## Contributing
 
 This is an educational project implementing the concepts from "Building an Agentic RAG Analyst".
 
@@ -440,11 +440,11 @@ Potential improvements:
 - [ ] Risk scoring model
 - [ ] Portfolio optimization
 
-## 📄 License
+## License
 
 See the original document for licensing details.
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - **LangGraph**: For state graph orchestration framework
 - **Tavily**: For advanced web search API
