@@ -164,7 +164,7 @@ def financial_analysis_wrapper(state: AgentState) -> Dict[str, Any]:
         Financial analysis results
     """
     print("Financial Analyst: Starting parallel execution...")
-    result = financial_analyst_node()
+    result = financial_analyst_node(state)
 
     # Ensure result is properly formatted (defensive check)
     if "financial_context" in result:
