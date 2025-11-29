@@ -331,7 +331,7 @@ Write a professional, data-driven {section_name} section. Include:
 {section_name}:"""
     )
 
-    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash-live", temperature=0.3)
+    llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash-lite", temperature=0.3)
     chain = section_prompt | llm
 
     try:

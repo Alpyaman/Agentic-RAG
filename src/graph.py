@@ -115,10 +115,14 @@ def start_research_phase(state: AgentState) -> Dict[str, Any]:
     Returns:
         Empty dict (no state updates)
     """
+    iteration = state.get('research_iterations', 0) + 1
+
     print(f"\n{'='*80}")
-    print(f"Starting Research Phase - Iteration {state.get('research_iterations', 0) + 1}")
+    print(f"Starting Research Phase - Iteration {iteration}")
     print(f"{'='*80}\n")
 
+    # Important: Return empty dict to avoid state updates
+    # LangGraph will handle this correctly for parallel execution
     return {}
 
 def web_research_wrapper(state: AgentState) -> Dict[str, Any]:
@@ -135,7 +139,16 @@ def web_research_wrapper(state: AgentState) -> Dict[str, Any]:
         Web research results
     """
     print("Web Researcher: Starting parallel execution...")
-    return iterative_web_research_node(state)
+    result = iterative_web_research_node(state)
+
+    # Ensure result is properly formatted (defensive check)
+    if "market_context" in result:
+        if not isinstance(result["market_context"], list):
+            print(f"Warning: market_context is {type(result['market_context'])}, wrapping in list.")
+            # Fix: wrap in list if it's a string
+            result["market_context"] = [result["market_context"]]
+
+    return result
 
 def financial_analysis_wrapper(state: AgentState) -> Dict[str, Any]:
     """
@@ -151,7 +164,17 @@ def financial_analysis_wrapper(state: AgentState) -> Dict[str, Any]:
         Financial analysis results
     """
     print("Financial Analyst: Starting parallel execution...")
-    return financial_analyst_node(state)
+    result = financial_analyst_node()
+
+    # Ensure result is properly formatted (defensive check)
+    if "financial_context" in result:
+        if not isinstance(result["financial_context"], list):
+            print(f"Warning: financial_context is {type(result['financial_context'])}, wrapping in list.")
+            # Fix: Wrap in list if it's a string
+            result["financial_context"] = [result["financial_context"]]
+    
+    return result
+
 
 # ============================================================================
 # Graph Construction

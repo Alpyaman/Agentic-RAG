@@ -25,6 +25,7 @@ import argparse
 from pathlib import Path
 from typing import List, Dict
 from financial_analyst import ingest_financial_document
+from dotenv import load_dotenv
 
 def parse_manifest(manifest_path: str) -> List[Dict]:
     """Parse a CSV manifest file"""
@@ -100,7 +101,7 @@ def discover_pdfs(directory: str) -> List[Dict]:
 
     return documents
 
-def ingest_batch(documents: List[Dict], persist_dir: str):
+def ingest_batch(documents: List[Dict]):
     """Ingest a batch of documents"""
     total = len(documents)
     success = 0
@@ -120,7 +121,6 @@ def ingest_batch(documents: List[Dict], persist_dir: str):
                 year=doc['year'],
                 quarter=doc['quarter'],
                 doc_type=doc['doc_type'],
-                persist_directory=persist_dir
             )
 
             print(f"   ✓ Success: {num_chunks} chunks")
@@ -137,7 +137,7 @@ def ingest_batch(documents: List[Dict], persist_dir: str):
     print(f"   Total:    {total}")
     print(f"   Success:  {success}")
     print(f"   Failed:   {failed}")
-    print(f"   Database: {persist_dir}")
+    print("   Database: ./chroma_db")
     print("=" * 80 + "\n")
 
 def main():
@@ -178,12 +178,6 @@ def main():
         help="CSV manifest file with document metadata"
     )
 
-    parser.add_argument(
-        "--persist-dir",
-        help="ChromaDB persist directory (default: ./chroma_db)",
-        default="./chroma_db"
-    )
-
     args = parser.parse_args()
 
     # Check arguments
@@ -197,13 +191,15 @@ def main():
     print("=" * 80)
 
     # Check environment
-    llama_key = os.getenv("LLAMA_CLOUD_API_KEY")
-    google_key = os.getenv("GOOGLE_API_KEY")
 
-    if not llama_key or not google_key:
-        print("\nMissing API keys")
+    load_dotenv()
+
+    google_key = os.getenv("GOOGLE_API_KEY")
+    llama_key = os.getenv("LLAMA_CLOUD_API_KEY")
+
+    if  not google_key or not llama_key:
         if not llama_key:
-            print("   LLAMA_CLOUD_API_KEY not set")
+            print("\nMissing API keys")
         if not google_key:
             print("   GOOGLE_API_KEY not set")
         sys.exit(1)
@@ -238,7 +234,7 @@ def main():
         sys.exit(0)
 
     # Ingest
-    ingest_batch(documents, args.persist_dir)
+    ingest_batch(documents)
 
 if __name__ == "__main__":
     main()

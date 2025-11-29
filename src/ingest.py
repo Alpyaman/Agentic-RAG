@@ -116,13 +116,7 @@ def main():
         choices=["10-K", "10-Q", "earnings", "8-K", "proxy"],
         default="10-K"
     )
-
-    parser.add_argument(
-        "--persist-dir",
-        help="ChromaDB persist directory (default: ./chroma_db)",
-        default="./chroma_db"
-    )
-
+ 
     args = parser.parse_args()
 
     # Banner
@@ -145,7 +139,7 @@ def main():
     if args.quarter:
         print(f"   Quarter:      {args.quarter}")
     print(f"   Type:         {args.type}")
-    print(f"   Target DB:    {args.persist_dir}")
+    print("   Target DB:    ./chroma_db (default)")
 
     # Confirm
     confirm = input("\nProceed with ingestion? (y/n): ").strip().lower()
@@ -164,8 +158,7 @@ def main():
             ticker=args.ticker,
             year=args.year,
             quarter=args.quarter,
-            doc_type=args.type,
-            persist_directory=args.persist_dir
+            doc_type=args.type
         )
 
         # Success
@@ -175,7 +168,7 @@ def main():
 
         print("\nResults:")
         print(f"   Chunks created:  {num_chunks}")
-        print(f"   Vector DB:       {args.persist_dir}")
+        print("    Vector DB:       ./chroma_db")
         print(f"   Ticker:          {args.ticker}")
         print(f"   Year:            {args.year}")
 

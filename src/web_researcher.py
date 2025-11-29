@@ -203,7 +203,7 @@ def synthesize_search_results(company: str, ticker: str, search_results: list, t
     )
 
     # Use a fast model for synthesis (we're not generating the final memo yet)
-    llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0)
+    llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash-lite", temperature=0)
 
     chain = syntesis_prompt | llm
 

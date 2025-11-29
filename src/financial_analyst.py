@@ -17,7 +17,7 @@ Key Feature: Uses a Python REPL tool for calculations to avoid LLM arithmetic er
 from typing import Dict, Any, Optional
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
 from langchain_experimental.tools import PythonREPLTool
 from state import AgentState
 from llama_parse import LlamaParse
@@ -75,7 +75,7 @@ def create_vector_store(collection_name: str = "financial_reports", persist_dire
         Chroma: Configured vector state
     """
     # Use Google's embedding model (consistent with Gemini usage)
-    embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+    embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-exp-03-07")
 
     # Initialize or load ChromaDB
     vectorstore = Chroma(collection_name=collection_name, embedding_function=embeddings, persist_directory=persist_directory)
@@ -184,7 +184,7 @@ def extract_financial_answer(query: str, context: str, company: str, python_repl
         Extracted answer with citations and accurate calculations
     """
 
-    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash-live", temperature=0)
+    llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash-lite", temperature=0)
 
     # ========================================================================
     # PASS 1: Extract data and identify calculations needed
@@ -397,9 +397,9 @@ def ingest_financial_document(file_path: str, ticker: str, year: int, doc_type: 
     
     except ImportError as e:
         print(f"Error: {str(e)}")
-        return 0
-    
+        raise # Re-raise the exception so caller knows it failed
+
     except Exception as e:
         print(f"Ingestion failed: {str(e)}\n")
         traceback.print_exc()
-        return 0
+        raise 
