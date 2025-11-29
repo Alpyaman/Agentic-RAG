@@ -6,15 +6,11 @@ An AI-powered investment research system that generates professional investment 
 
 Unlike traditional RAG (Retrieval-Augmented Generation), which follows a linear retrieve → generate flow, **Agentic RAG** features:
 
-1.  ** Autonomous Data Sourcing**: Automatically downloads 10-K/10-Q filings directly from **SEC EDGAR**.
-2.  ** Parallel Agent Execution**: Web Researcher and Financial Analyst run simultaneously, cutting latency by 50%.
-3.  ** 3-Pass "Anti-Hallucination" Math**:
-    * *Pass 1:* LLM identifies the formula needed.
-    * *Pass 2:* Python REPL executes the math (100% precision).
-    * *Pass 3:* LLM synthesizes the answer into the narrative.
-4.  ** Vision-Language Parsing**: Uses **LlamaParse** to read complex financial tables row-by-row, preserving structure that standard OCR misses.
-
----
+- **Iterative Research Loops**: System evaluates its progress and decides whether to gather more data
+- **Multi-Source Intelligence**: Combines web search (Tavily) + vector database (ChromaDB)
+- **Quality Control Gates**: Validates data sufficiency before proceeding to final output
+- **Structured State Management**: Deterministic data flow prevents information loss
+- **Professional Output**: Generates VC/PE-grade investment memos with citations
 
 ## System Architecture
 
@@ -77,9 +73,10 @@ OUTPUT: Investment Memo (Markdown)
 - Prevents hallucination through grounding
 
 ### 5. **Cost-Optimized Model Selection**
-- **Gemini Flash**: Quick synthesis tasks (~50% cheaper than GPT-4)
-- **Gemini Pro**: Final memo generation (quality matters)
+- **Gemini 2.0 Flash Lite**: Quick synthesis tasks (~50% cheaper than GPT-4)
+- **Gemini 2.5 Pro**: Final memo generation (highest quality)
 - **Google Embeddings**: Vector database (free tier available)
+- **Local Embeddings**: Option to use HuggingFace models (100% free, no API)
 
 ## Quick Start
 
@@ -91,14 +88,23 @@ pip install -r requirements.txt
 
 ### 2. Set API Keys
 
+**Required:**
 ```bash
 export GOOGLE_API_KEY='your-google-api-key'
 export TAVILY_API_KEY='your-tavily-api-key'
 ```
 
+**Optional (for document ingestion):**
+```bash
+export LLAMA_CLOUD_API_KEY='your-llama-cloud-key'
+```
+
 Get API keys:
 - **Google AI Studio**: https://aistudio.google.com/apikey (free tier available)
 - **Tavily**: https://tavily.com (1000 free searches/month)
+- **LlamaCloud**: https://cloud.llamaindex.ai (optional, for document parsing)
+
+**Note:** You can also copy `.env.example` to `.env` and fill in your keys.
 
 ### 3. Run Analysis
 
@@ -139,8 +145,11 @@ Agentic-RAG/
 │   ├── web_researcher.py           # Tavily web search + synthesis
 │   ├── financial_analyst.py        # ChromaDB vector DB + Python REPL
 │   ├── writer.py                   # Investment memo generation
-│   ├── graph.py                    # LangGraph workflow assembly
+│   ├── graph.py                    # LangGraph workflow (parallel execution)
 │   ├── main.py                     # CLI interface
+│   ├── ingest.py                   # Single document ingestion CLI
+│   ├── batch_ingest.py             # Batch ingestion from directory/manifest
+│   ├── auto_download.py            # SEC EDGAR auto-downloader
 │   │
 │   ├── test_state.py               # State management tests
 │   ├── test_web_researcher.py      # Web research tests
@@ -148,11 +157,12 @@ Agentic-RAG/
 │   ├── test_writer.py              # Memo generation tests
 │   └── test_graph.py               # End-to-end workflow tests
 │
+├── data/
+│   └── manifest.csv                # Sample batch ingestion manifest
+│
 ├── requirements.txt                # Python dependencies
+├── .env.example                    # Environment variables template
 ├── README.md                       # This file
-├── IMPLEMENTATION_LOG.md           # Detailed implementation notes
-├── GEMINI_MIGRATION.md             # OpenAI → Gemini migration guide
-├── TAVILY_API_FIX.md              # Tavily API format fix documentation
 └── Building an Agentic RAG Analyst.docx  # Original design document
 ```
 
@@ -178,6 +188,79 @@ python src/test_graph.py
 ```
 
 All tests work without API keys (graceful degradation) but show limited functionality.
+
+## Data Collection & Ingestion
+
+The system provides powerful tools for collecting and ingesting financial documents into the vector database.
+
+### Automated SEC Filing Downloads
+
+Download 10-K, 10-Q, 8-K, and DEF 14A filings directly from SEC EDGAR:
+
+```bash
+# Download single filing for a specific year
+python src/auto_download.py TSLA --years 2023 --filing-type 10-K
+
+# Download and automatically ingest into vector database
+python src/auto_download.py TSLA --years 2023 --filing-type 10-K --ingest
+
+# Download multiple years at once
+python src/auto_download.py AAPL --years 2021 2022 2023 --filing-type 10-K
+
+# Download quarterly reports
+python src/auto_download.py TSLA --years 2023 --filing-type 10-Q --ingest
+
+# Batch download from manifest file
+python src/auto_download.py --manifest data/manifest.csv
+```
+
+**Features:**
+- Respects SEC rate limits (10 requests/second)
+- Automatic HTML to ingestible format conversion
+- Downloads saved to `./sec-edgar-filings/`
+- Processed files saved to `./data/`
+
+### Manual Document Ingestion
+
+Ingest individual financial documents (PDF, HTML, DOCX, PPTX, TXT):
+
+```bash
+# Ingest a 10-K filing
+python src/ingest.py data/TSLA_2023_10K.pdf TSLA 2023
+
+# Ingest a quarterly report with quarter specification
+python src/ingest.py data/AAPL_Q3_2023.pdf AAPL 2023 --quarter Q3 --type 10-Q
+
+# Interactive mode (prompts for inputs)
+python src/ingest.py
+```
+
+### Batch Ingestion
+
+Process multiple documents at once using directory auto-discovery or manifest file:
+
+```bash
+# Auto-discover and ingest all PDFs in a directory
+# Expected filename format: TICKER_YEAR_TYPE.pdf (e.g., TSLA_2023_10K.pdf)
+python src/batch_ingest.py data/financial_reports/
+
+# Use a manifest file for precise control
+python src/batch_ingest.py --manifest data/manifest.csv
+```
+
+**Manifest CSV Format** (`data/manifest.csv`):
+```csv
+file_path,ticker,year,quarter,doc_type
+data/TSLA_2023_10K.pdf,TSLA,2023,,10-K
+data/AAPL_Q3_2023.pdf,AAPL,2023,Q3,10-Q
+data/NVDA_2023_10K.pdf,NVDA,2023,,10-K
+```
+
+**Batch Processing Features:**
+- Success/failure tracking with summary reports
+- Intelligent filename parsing
+- Validation and error handling
+- Interactive confirmation before processing
 
 ## Advanced Usage
 
@@ -235,7 +318,7 @@ app = create_research_graph()
 print(app.get_graph().draw_mermaid())
 ```
 
-## How It Works
+## 🎓 How It Works
 
 ### 1. State Management (`state.py`)
 
@@ -305,16 +388,21 @@ class AgentState(TypedDict):
 ### 5. Graph Orchestration (`graph.py`)
 
 **Nodes:**
-- `research`: Runs Web + Financial analysts
+- `start_research`: Initializes research phase
+- `web_research`: Tavily web search + synthesis (runs in parallel)
+- `financial_analysis`: ChromaDB query + Python REPL (runs in parallel)
 - `evaluate`: Checks data sufficiency
 - `write`: Generates final memo
 
 **Edges:**
-- `START → research`: Begin with data gathering
-- `research → evaluate`: Check if we have enough data
+- `START → start_research`: Initialize
+- `start_research → web_research`: Begin web research (parallel)
+- `start_research → financial_analysis`: Begin financial analysis (parallel)
+- `web_research → evaluate`: Sync point
+- `financial_analysis → evaluate`: Sync point
 - `evaluate → [conditional]`:
-  - If insufficient → `research` (loop)
-  - If sufficient → `write` (proceed)
+  - If insufficient → `start_research` (loop for more data)
+  - If sufficient → `write` (proceed to memo generation)
 - `write → END`: Done
 
 **Quality Gate Logic:**
@@ -332,15 +420,116 @@ is_sufficient = (has_financial and has_market and iterations >= 1)
 | Component | Technology | Why? |
 |-----------|-----------|------|
 | **Orchestration** | LangGraph | State graphs with conditional routing |
-| **LLM (Synthesis)** | Gemini Flash 1.5 | Fast, cheap, 1M token context |
-| **LLM (Writing)** | Gemini Pro 1.5 | High quality for final output |
+| **LLM (Synthesis)** | Gemini 2.0 Flash Lite | Fast, cheap, 1M token context |
+| **LLM (Writing)** | Gemini 2.5 Pro | Highest quality for final output |
 | **Web Search** | Tavily | Advanced search depth, reputable sources |
 | **Vector DB** | ChromaDB | Local persistence, no external DB |
-| **Embeddings** | Google embedding-001 | Free tier, consistent with Gemini |
+| **Embeddings** | Google Gemini / HuggingFace | Free tier API or local models |
 | **Doc Parsing** | LlamaParse | Vision-language model for tables |
 | **Calculations** | Python REPL | 100% accurate math (vs hallucinating LLM) |
 
-##  Example Output
+## Cost Optimization
+
+### Use Local Embeddings (Zero API Costs)
+
+The system supports local HuggingFace embeddings, completely eliminating embedding API costs:
+
+**How it works:**
+- Downloads `sentence-transformers/all-MiniLM-L6-v2` model (~80MB)
+- Runs embeddings locally on CPU (no GPU required)
+- 100% free, no API calls, no rate limits
+- Enabled by default in `financial_analyst.py`
+
+**To use Google API embeddings instead:**
+```python
+from financial_analyst import create_vector_store
+
+vectorstore = create_vector_store(use_local_embeddings=False)
+```
+
+### Model Selection by Task
+
+Different tasks use different models to optimize cost and quality:
+
+- **Web Research**: `gemini-2.0-flash-lite`
+  - Fast synthesis of web search results
+  - Low cost per token
+  - 1M token context window
+
+- **Financial Analysis**: `gemini-2.0-flash-lite`
+  - Quick data extraction
+  - Calculations delegated to Python REPL (free, accurate)
+
+- **Final Memo**: `gemini-2.5-pro`
+  - Highest quality for investor-grade output
+  - Worth the cost for final deliverable
+
+### API Usage Estimates
+
+**Typical analysis (single company):**
+- Web research: ~2-3 Flash Lite calls (~$0.01)
+- Financial analysis: ~2-3 Flash Lite calls (~$0.01)
+- Final memo: 1 Pro call (~$0.03)
+- **Total: ~$0.05 per analysis**
+
+**Free tier limits:**
+- Gemini Flash Lite: 15 requests/min, 1500/day
+- Gemini Pro: 2 requests/min, 50/day
+- Tavily: 1000 searches/month
+- **You can run ~50 analyses per day on free tier**
+
+## Performance Optimizations
+
+### Parallel Research Execution
+
+Web Researcher and Financial Analyst run concurrently for ~50% speed improvement:
+
+```python
+# In graph.py - parallel execution
+app.add_node("web_research", iterative_web_research_node)
+app.add_node("financial_analysis", financial_analyst_node)
+
+# Both nodes read from start_research and run in parallel
+app.add_edge("start_research", "web_research")
+app.add_edge("start_research", "financial_analysis")
+```
+
+**Benefits:**
+- Cut research time from ~60s to ~30s
+- No data conflicts (operator.add handles merging)
+- Automatic synchronization before evaluation
+
+### Streaming for Real-Time Progress
+
+Monitor analysis progress in real-time for UI integration:
+
+```python
+from graph import analyze_company_stream
+
+for event in analyze_company_stream("Tesla", "TSLA"):
+    node = list(event.keys())[0]
+    state = event[node]
+
+    print(f"✓ Completed: {node}")
+    print(f"  Iterations: {state.get('research_iterations', 0)}")
+
+    if 'memo_sections' in state and 'full_draft' in state['memo_sections']:
+        print(f"  Memo ready! ({len(state['memo_sections']['full_draft'])} chars)")
+```
+
+### Caching Strategies
+
+**Vector Database Persistence:**
+- ChromaDB persists to `./chroma_db/`
+- Documents ingested once, queried unlimited times
+- No re-parsing of PDFs after initial ingestion
+
+**Document Pre-Processing:**
+- Batch ingest documents during off-hours
+- Analysis queries cached embeddings (fast retrieval)
+- LlamaParse results cached by document hash
+
+## Example Output
 
 Here's what the system generates for Tesla (TSLA):
 
@@ -409,36 +598,67 @@ pip install langchain-experimental
 
 ### Tavily API returns dictionary, not list
 
-This is expected behavior with the new `langchain-tavily` package. The code handles both formats. See `TAVILY_API_FIX.md` for details.
+This is expected behavior with the new `langchain-tavily` package. The code handles both formats automatically.
 
 ### Google API quota exceeded (429 error)
 
 Free tier limits:
-- **Gemini Flash**: 15 requests/minute, 1500/day
-- **Gemini Pro**: 2 requests/minute, 50/day
+- **Gemini 2.0 Flash Lite**: 15 requests/minute, 1500/day
+- **Gemini 2.5 Pro**: 2 requests/minute, 50/day
 - **Embeddings**: 1500 requests/day
 
-Solution: Upgrade to paid tier or space out requests.
+Solutions:
+- Upgrade to paid tier or space out requests
+- Use local embeddings (HuggingFace) to eliminate embedding API calls
+- Reduce MAX_ITERATIONS in `src/graph.py` to use fewer API calls
 
 ### ChromaDB returns no results
 
-The vector database is initially empty. Either:
-1. Let the system work with web data only (Financial Analyst will report "No data")
-2. Ingest financial documents using `ingest_financial_document()`
+The vector database is initially empty. You have several options:
+
+1. **Let the system work with web data only** (Financial Analyst will report "No data")
+2. **Download and ingest SEC filings automatically:**
+   ```bash
+   python src/auto_download.py TSLA --years 2023 --filing-type 10-K --ingest
+   ```
+3. **Ingest existing documents:**
+   ```bash
+   python src/ingest.py data/TSLA_2023_10K.pdf TSLA 2023
+   ```
+4. **Batch ingest multiple documents:**
+   ```bash
+   python src/batch_ingest.py data/financial_reports/
+   ```
+
+## Documentation
+
+- **README.md**: Complete setup and usage guide (this file)
+- **CHANGELOG.md**: Project history and recent updates
+- **.env.example**: Environment variables template
+- **Building an Agentic RAG Analyst.docx**: Original design document
+- **Code Documentation**: Comprehensive docstrings in all modules
+- **Test Suite**: See `src/test_*.py` for usage examples and test cases
 
 ## Contributing
 
 This is an educational project implementing the concepts from "Building an Agentic RAG Analyst".
 
-Potential improvements:
-- [✔] Parallel execution of Web + Financial researchers
-- [✔] LLM-based data sufficiency evaluation (instead of heuristic)
+**Recently Completed:**
+- [x] Parallel execution of Web + Financial researchers
+- [x] SEC EDGAR auto-downloader
+- [x] Batch ingestion system
+- [x] Local embeddings support
+
+**Potential Improvements:**
+- [ ] LLM-based data sufficiency evaluation (instead of heuristic)
 - [ ] Multi-company comparison mode
 - [ ] Export to PDF with charts/graphs
 - [ ] Technical analysis node (price charts, volume)
 - [ ] Sentiment analysis from earnings calls
 - [ ] Risk scoring model
 - [ ] Portfolio optimization
+- [ ] API rate limiting and retry logic
+- [ ] Caching layer for API responses
 
 ## License
 
@@ -453,4 +673,4 @@ See the original document for licensing details.
 
 ---
 
-**Built with ❤️ using LangGraph, LlamaIndex, and Gemini.**
+**Built with ❤️ following the "Building an Agentic RAG Analyst" guide**
