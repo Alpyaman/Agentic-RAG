@@ -38,12 +38,12 @@ import traceback
 import shutil
 from datetime import datetime
 from sec_edgar_downloader import Downloader
-from .ingest import ingest_filing
+from ingest import ingest_financial_document
+from dotenv import load_dotenv
 
-
+load_dotenv()
     
-def download_filing(ticker: str, filing_type: str = "10-K", after_date: Optional[str] = None,
-                    before_date: Optional[str] = None, download_details: bool = True,
+def download_filing(ticker: str, filing_type: str = "10-K", after_date: Optional[str] = None, before_date: Optional[str] = None, download_details: bool = True,
                     company_name: Optional[str] = None) -> List[Path]:
     """
     Download SEC filings for a given ticker.
@@ -74,8 +74,7 @@ def download_filing(ticker: str, filing_type: str = "10-K", after_date: Optional
     # Download the filings
     # They will be saved to: ./sec-edgar-filings/{ticker}/{filing_type}/
     try:
-        num_downloaded = dl.get(filing_type, ticker, after=after_date, before=before_date,
-            download_details=download_details)
+        num_downloaded = dl.get(filing_type, ticker, after=after_date, before=before_date, download_details=download_details)
         
         print(f"\nDownloaded {num_downloaded} {filing_type} filing(s)")
 
@@ -95,8 +94,7 @@ def download_filing(ticker: str, filing_type: str = "10-K", after_date: Optional
         traceback.print_exc()
         return []
     
-def convert_filing_to_ingestible_format(filing_dir: Path, ticker: str,
-                                        output_dir: Path = Path("data")) -> Optional[Path]:
+def convert_filing_to_ingestible_format(filing_dir: Path, ticker: str, output_dir: Path = Path("data")) -> Optional[Path]:
     """
     Convert downloaded SEC filing to a format ready for ingestion.
 
@@ -172,8 +170,7 @@ def convert_filing_to_ingestible_format(filing_dir: Path, ticker: str,
         traceback.print_exc()
         return None
 
-def download_and_prepare(ticker: str, years: List[int], filing_type: str = "10-K",
-                         output_dir: Path = Path("data"), auto_ingest: bool = False) -> List[Path]:
+def download_and_prepare(ticker: str, years: List[int], filing_type: str = "10-K", output_dir: Path = Path("data"), auto_ingest: bool = False) -> List[Path]:
     """
     Download filings and prepare them for ingestion.
 
@@ -195,12 +192,11 @@ def download_and_prepare(ticker: str, years: List[int], filing_type: str = "10-K
         after_date = f"{year}-01-01"
         before_date = f"{year}-12-31"
 
-        print(f"\n📅 Year: {year}")
+        print(f"\nYear: {year}")
 
         # Download the filing
 
-        filing_dirs = download_filing(ticker=ticker, filing_type=filing_type,
-                                      after_date=after_date, before_date=before_date)
+        filing_dirs = download_filing(ticker=ticker, filing_type=filing_type, after_date=after_date, before_date=before_date)
 
         if not filing_dirs:
             print(f"No {filing_type} found for {ticker} in {year}")
@@ -216,8 +212,7 @@ def download_and_prepare(ticker: str, years: List[int], filing_type: str = "10-K
                 if auto_ingest:
                     print("Auto-ingesting...")
                     try:
-                        num_chunks = ingest_filing(str(prepared_file), ticker, year,
-                                                   doc_type=filing_type)
+                        num_chunks = ingest_financial_document(str(prepared_file), ticker, year, doc_type=filing_type)
                         print(f"Ingested {num_chunks} chunks")
                     except Exception as e:
                         print(f"Ingestion failed: {str(e)}")
@@ -254,39 +249,31 @@ def batch_download_from_manifest(manifest_path: Path, auto_ingest: bool = False)
             year = int(row['year'])
             filing_type = row.get('filing_type', '10-K')
 
-            download_and_prepare(ticker=ticker, years=[year], filing_type=filing_type,
-                                 auto_ingest=auto_ingest)
+            download_and_prepare(ticker=ticker, years=[year], filing_type=filing_type, auto_ingest=auto_ingest)
 
 def main():
     """Main entry point for the auto-downloader."""
-    parser = argparse.ArgumentParser(
-        description="Automatically download SEC filings from EDGAR",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Download Tesla's 2023 10-K
-  python src/auto_download.py TSLA --years 2023 --filing-type 10-K
+    parser = argparse.ArgumentParser(description="Automatically download SEC filings from EDGAR", formatter_class=argparse.RawDescriptionHelpFormatter, epilog="""
+    Examples:
+    # Download Tesla's 2023 10-K
+    python src/auto_download.py TSLA --years 2023 --filing-type 10-K
 
-  # Download and auto-ingest
-  python src/auto_download.py TSLA --years 2023 --filing-type 10-K --ingest
+    # Download and auto-ingest
+    python src/auto_download.py TSLA --years 2023 --filing-type 10-K --ingest
 
-  # Download multiple years
-  python src/auto_download.py AAPL --years 2021 2022 2023 --filing-type 10-K
+    # Download multiple years
+    python src/auto_download.py AAPL --years 2021 2022 2023 --filing-type 10-K
 
-  # Batch download from manifest
-  python src/auto_download.py --manifest data/manifest.csv --download
-        """
+    # Batch download from manifest
+    python src/auto_download.py --manifest data/manifest.csv --download
+    """
     )
 
     parser.add_argument("ticker", nargs="?", help="Stock ticker (e.g., TSLA)")
     parser.add_argument("--years", nargs="+", type=int, help="Years to download (e.g., 2021 2022 2023)")
-    parser.add_argument("--filing-type", "-t", default="10-K",
-                       choices=["10-K", "10-Q", "8-K", "DEF 14A"],
-                       help="Type of filing to download")
-    parser.add_argument("--output-dir", "-o", default="data",
-                       help="Output directory for downloaded files")
-    parser.add_argument("--ingest", action="store_true",
-                       help="Automatically ingest files after downloading")
+    parser.add_argument("--filing-type", "-t", default="10-K", choices=["10-K", "10-Q", "8-K", "DEF 14A"], help="Type of filing to download")
+    parser.add_argument("--output-dir", "-o", default="data", help="Output directory for downloaded files")
+    parser.add_argument("--ingest", action="store_true", help="Automatically ingest files after downloading")
     parser.add_argument("--manifest", "-m", help="Path to CSV manifest for batch download")
 
     args = parser.parse_args()
@@ -306,10 +293,7 @@ Examples:
         print("Error: Please specify --years")
         sys.exit(1)
 
-    prepared_files = download_and_prepare(ticker=args.ticker, years=args.years,
-                                          filing_type=args.filing_type,
-                                          output_dir=Path(args.output_dir),
-                                          auto_ingest=args.ingest)
+    prepared_files = download_and_prepare(ticker=args.ticker, years=args.years, filing_type=args.filing_type, output_dir=Path(args.output_dir), auto_ingest=args.ingest)
 
     print(f"\n{'='*80}")
     print("Download Complete!")
